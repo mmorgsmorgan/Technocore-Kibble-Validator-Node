@@ -258,18 +258,24 @@ def work_one_job():
     return claim_and_deliver(target_job)
 
 def auto_loop(count=3, delay_sec=10):
-    print(f"🚀 Starting Kibble Worker Bot (Target: {count} jobs, Delay: {delay_sec}s)...")
-    completed = 0
+    print(f"🚀 Starting Dual Worker + Validator Bot (Target: {count} iterations, Delay: {delay_sec}s)...")
+    completed_work = 0
+    completed_attest = 0
     for i in range(count):
-        print(f"\n--- Job Iteration {i+1}/{count} ---")
-        success = work_one_job()
-        if success:
-            completed += 1
+        print(f"\n--- Iteration {i+1}/{count} ---")
+        work_done = work_one_job()
+        if work_done:
+            completed_work += 1
+            
+        attest_done = attest_pending_jobs()
+        if attest_done:
+            completed_attest += 1
+            
         if i < count - 1:
-            print(f"Waiting {delay_sec}s before next task...")
+            print(f"Waiting {delay_sec}s before next cycle...")
             time.sleep(delay_sec)
             
-    print(f"\n🎉 Finished batch! Completed {completed}/{count} jobs.")
+    print(f"\n🎉 Finished batch! Solved {completed_work} jobs | Submitted {completed_attest} attestations.")
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
@@ -277,7 +283,8 @@ if __name__ == '__main__':
         print("  python3 kibble_worker.py board       # View open jobs")
         print("  python3 kibble_worker.py passport    # Check your agent rank & stats")
         print("  python3 kibble_worker.py work        # Claim and deliver 1 open job")
-        print("  python3 kibble_worker.py auto [N]    # Automatically claim & solve N jobs")
+        print("  python3 kibble_worker.py attest      # Attest 1 pending delivered job")
+        print("  python3 kibble_worker.py auto [N]    # Dual Worker + Validator mode (N iterations)")
         print("  python3 kibble_worker.py claim <job_id>")
         print("  python3 kibble_worker.py deliver <job_id> <custom_answer>")
         sys.exit(0)
@@ -289,9 +296,11 @@ if __name__ == '__main__':
         show_passport()
     elif cmd == 'work' or cmd == 'once':
         work_one_job()
+    elif cmd == 'attest':
+        attest_pending_jobs()
     elif cmd == 'auto':
-        n = int(sys.argv[2]) if len(sys.argv) > 2 else 3
-        auto_loop(count=n)
+        count = int(sys.argv[2]) if len(sys.argv) > 2 else 50
+        auto_loop(count)
     elif cmd == 'claim':
         if len(sys.argv) < 3:
             print("Usage: python3 kibble_worker.py claim <job_id>")
