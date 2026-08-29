@@ -194,6 +194,7 @@ def solve_job(job):
 def claim_and_deliver(job, custom_solution=None):
     job_id = job.get('job_id')
     title = job.get('title')
+    did = get_did()
     print(f"\n[1/3] Selected Job: {job_id} — {title}")
     
     # Step 1: Claim
@@ -203,9 +204,28 @@ def claim_and_deliver(job, custom_solution=None):
     if not res:
         print("Failed to send claim.")
         return False
-    print("Claim posted successfully!")
+    print("Claim posted successfully! Waiting for claim to reflect on the board...")
     
-    time.sleep(2)
+    # Wait for claim to register (up to 12 attempts, 5s delay)
+    claim_registered = False
+    for attempt in range(1, 13):
+        time.sleep(5)
+        print(f"Checking board status (attempt {attempt}/12)...")
+        board = fetch_board()
+        for j in board.get('jobs', []):
+            if j.get('job_id') == job_id:
+                if j.get('worker_did') == did:
+                    print(f"Claim successfully registered! Worker DID matches: {did[:20]}...")
+                    claim_registered = True
+                    break
+                elif j.get('worker_did'):
+                    print(f"Warning: Job claimed by another worker: {j.get('worker_did')[:20]}...")
+                    return False
+        if claim_registered:
+            break
+            
+    if not claim_registered:
+        print("Timeout: Claim did not reflect on the board in 60s. Proceeding anyway...")
     
     # Step 2: Solve & Deliver
     solution = custom_solution if custom_solution else solve_job(job)
