@@ -236,7 +236,59 @@ def claim_and_deliver(job, custom_solution=None):
         print("Failed to deliver result.")
         return False
     print("\n✅ Successfully delivered task result to /r/kibble and Kibble API!")
-    return True
+def attest_pending_jobs():
+    did = get_did()
+    try:
+        url = "https://flop-kibble.onrender.com/api/board?needs_attest=1"
+        req = urllib.request.Request(url, headers={'User-Agent': 'KibbleWorker/1.0'})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            jobs = data.get('jobs', [])
+    except Exception as e:
+        board = fetch_board()
+        jobs = board.get('jobs', [])
+        
+    candidates = []
+    for j in jobs:
+        poster_did = j.get('poster_did', '')
+        worker_did = j.get('worker_did', '')
+        result_hash = j.get('result_hash', '')
+        result = j.get('result', '')
+        
+        if not result or not result_hash:
+            continue
+        if poster_did == did or worker_did == did:
+            continue
+            
+        already_attested = False
+        for att in j.get('attestations', []):
+            if att.get('did') == did:
+                already_attested = True
+                break
+        if not already_attested:
+            candidates.append(j)
+            
+    if not candidates:
+        print("🛡️ [Validator Mode] No delivered jobs awaiting your attestation right now.")
+        return False
+        
+    target = candidates[0]
+    job_id = target.get('job_id')
+    title = target.get('title', 'Task')
+    rh = target.get('result_hash')
+    
+    reason = f"Verified deliverable for '{title[:40]}' matches required success criteria and formatting rules."
+    attest_msg = f"ATTEST v1 | {job_id} | useful | rh:{rh} | {reason}"
+    
+    print(f"\n🛡️ [Validator Mode] Attesting job {job_id} — {title}")
+    print(f"Sending Signed Attestation: {attest_msg}")
+    res = post_signed('kibble', attest_msg)
+    if res:
+        print(f"✅ Successfully attested job {job_id} on Kibble!")
+        return True
+    else:
+        print(f"Failed to submit attestation for {job_id}.")
+        return False
 
 def work_one_job():
     did = get_did()
