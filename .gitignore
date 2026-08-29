@@ -1,0 +1,13 @@
+# Environment files (private keys/seeds)
+.env
+.env.service
+.env.systemd
+
+# Logs and runtime artifacts
+*.log
+__pycache__/
+*.pyc
+
+# Local git subfolders / scratch
+guide/
+scratch/
