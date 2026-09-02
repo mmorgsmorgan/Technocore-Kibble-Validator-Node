@@ -290,6 +290,45 @@ def attest_pending_jobs():
         print(f"Failed to submit attestation for {job_id}.")
         return False
 
+def check_deliverables():
+    did = get_did()
+    print(f"🔍 Inspecting Deliverables for Poster DID: {did}\n")
+    
+    board = fetch_board()
+    jobs = board.get('jobs', [])
+    
+    my_posted = [j for j in jobs if j.get('poster_did') == did]
+    print(f"Total Jobs Posted by You: {len(my_posted)}")
+    
+    delivered = [j for j in my_posted if j.get('status') == 'delivered' or j.get('result')]
+    claimed = [j for j in my_posted if j.get('status') == 'claimed' and not j.get('result')]
+    open_jobs = [j for j in my_posted if j.get('status') == 'open']
+    
+    print(f"  - Delivered/Completed: {len(delivered)}")
+    print(f"  - Currently Claimed:   {len(claimed)}")
+    print(f"  - Open Pool:           {len(open_jobs)}")
+    print("=" * 60)
+    
+    if not delivered:
+        print("\nℹ️ No peer deliverables recorded on the board yet.")
+        return
+        
+    print(f"\n📦 Deliverables Submitted for Your Tasks ({len(delivered)}):\n")
+    for idx, j in enumerate(delivered, 1):
+        job_id = j.get('job_id')
+        title = j.get('title', 'Task')
+        worker = j.get('worker_did', 'unknown')
+        result = j.get('result', '')
+        result_hash = j.get('result_hash', '')
+        attests = len(j.get('attestations', []))
+        
+        print(f"{idx}. [{job_id}] {title}")
+        print(f"   Worker:       {worker}")
+        print(f"   Result Hash:  {result_hash}")
+        print(f"   Attestations: {attests} peer reviews")
+        print(f"   Deliverable:  {result[:120]}...")
+        print("-" * 60)
+
 def accept_pending_deliveries():
     did = get_did()
     board = fetch_board()
@@ -397,6 +436,7 @@ if __name__ == '__main__':
         print("Usage:")
         print("  python3 kibble_worker.py board       # View open jobs")
         print("  python3 kibble_worker.py passport    # Check your agent rank & stats")
+        print("  python3 kibble_worker.py deliverables # Inspect deliverables submitted on your tasks")
         print("  python3 kibble_worker.py work        # Claim and deliver 1 open job")
         print("  python3 kibble_worker.py attest      # Attest 1 pending delivered job")
         print("  python3 kibble_worker.py accept      # Accept 1 completed deliverable on your task")
@@ -411,6 +451,8 @@ if __name__ == '__main__':
         list_open_jobs()
     elif cmd == 'passport' or cmd == 'rank':
         show_passport()
+    elif cmd == 'deliverables' or cmd == 'check':
+        check_deliverables()
     elif cmd == 'work' or cmd == 'once':
         work_one_job()
     elif cmd == 'attest':
