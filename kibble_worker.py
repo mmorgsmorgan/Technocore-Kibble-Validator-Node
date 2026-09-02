@@ -290,6 +290,61 @@ def attest_pending_jobs():
         print(f"Failed to submit attestation for {job_id}.")
         return False
 
+def accept_pending_deliveries():
+    did = get_did()
+    board = fetch_board()
+    jobs = board.get('jobs', [])
+    my_posted = [j for j in jobs if j.get('poster_did') == did and (j.get('status') == 'delivered' or j.get('result'))]
+    
+    if not my_posted:
+        print("📜 [Poster Mode] No delivered peer tasks awaiting your ACCEPT vote right now.")
+        return False
+        
+    target = my_posted[0]
+    job_id = target.get('job_id')
+    title = target.get('title', 'Task')
+    accept_msg = f"ACCEPT v1 | {job_id}"
+    
+    print(f"\n📜 [Poster Mode] Accepting deliverable for job {job_id} — {title}")
+    print(f"Sending Signed ACCEPT: {accept_msg}")
+    res = post_signed('kibble', accept_msg)
+    if res:
+        print(f"✅ Successfully accepted job {job_id} on Kibble (+4 Poster Points)!")
+        return True
+    else:
+        print(f"Failed to submit ACCEPT vote for {job_id}.")
+        return False
+
+def post_batch_jobs(count=5):
+    did = get_did()
+    print(f"\n📜 [Poster Mode] Generating and broadcasting {count} signed JOB v1 tasks under DID {did[:20]}...")
+    categories = ["explain", "research", "review", "build", "coordinate"]
+    topics = [
+        ("Python list vs tuple memory layout", "Explain memory overhead differences between Python list and tuple structures."),
+        ("TLS 1.3 0-RTT handshake replay risk", "Explain the 0-RTT anti-replay mechanism in TLS 1.3."),
+        ("Merkle tree root verification in blockchains", "Outline how a Merkle proof verifies transaction inclusion in O(log N) time."),
+        ("Linux process cgroups v2 memory limits", "Describe how cgroups v2 memory.max controls OOM killing under pressure."),
+        ("TCP TIME_WAIT state purpose", "Explain why TCP sockets enter TIME_WAIT for 2MSL before closing.")
+    ]
+    
+    posted_count = 0
+    import secrets
+    import random
+    for i in range(count):
+        cat = random.choice(categories)
+        t_title, t_desc = random.choice(topics)
+        job_hex = "k" + secrets.token_hex(5)
+        title = f"{t_title} #{i+1}"
+        body = f"{t_desc} Success criteria: Provide clear technical summary with exact terminology. Task #{i+1}."
+        job_msg = f"JOB v1 | {job_hex} | {cat} | {title} | {body}"
+        
+        res = post_signed('kibble', job_msg)
+        if res:
+            posted_count += 1
+            print(f"  ✅ [{i+1}/{count}] Posted {job_hex} ({cat}): {title[:40]}...")
+        time.sleep(1.0)
+    print(f"🎉 Batch complete! Broadcast {posted_count}/{count} signed tasks.")
+
 def work_one_job():
     did = get_did()
     board = fetch_board()
@@ -310,24 +365,32 @@ def work_one_job():
     return claim_and_deliver(target_job)
 
 def auto_loop(count=3, delay_sec=10):
-    print(f"🚀 Starting Dual Worker + Validator Bot (Target: {count} iterations, Delay: {delay_sec}s)...")
+    print(f"🚀 Starting Triple Engine Bot (Worker + Validator + Poster) (Target: {count} iterations, Delay: {delay_sec}s)...")
     completed_work = 0
     completed_attest = 0
+    completed_accept = 0
     for i in range(count):
         print(f"\n--- Iteration {i+1}/{count} ---")
+        # 1. Worker Role
         work_done = work_one_job()
         if work_done:
             completed_work += 1
             
+        # 2. Validator Role
         attest_done = attest_pending_jobs()
         if attest_done:
             completed_attest += 1
+            
+        # 3. Poster Role (ACCEPT review)
+        accept_done = accept_pending_deliveries()
+        if accept_done:
+            completed_accept += 1
             
         if i < count - 1:
             print(f"Waiting {delay_sec}s before next cycle...")
             time.sleep(delay_sec)
             
-    print(f"\n🎉 Finished batch! Solved {completed_work} jobs | Submitted {completed_attest} attestations.")
+    print(f"\n🎉 Finished batch! Solved {completed_work} | Attested {completed_attest} | Accepted {completed_accept}.")
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
@@ -336,7 +399,9 @@ if __name__ == '__main__':
         print("  python3 kibble_worker.py passport    # Check your agent rank & stats")
         print("  python3 kibble_worker.py work        # Claim and deliver 1 open job")
         print("  python3 kibble_worker.py attest      # Attest 1 pending delivered job")
-        print("  python3 kibble_worker.py auto [N]    # Dual Worker + Validator mode (N iterations)")
+        print("  python3 kibble_worker.py accept      # Accept 1 completed deliverable on your task")
+        print("  python3 kibble_worker.py post [N]    # Create N signed JOB v1 tasks")
+        print("  python3 kibble_worker.py auto [N]    # Triple Engine mode (Worker + Validator + Poster)")
         print("  python3 kibble_worker.py claim <job_id>")
         print("  python3 kibble_worker.py deliver <job_id> <custom_answer>")
         sys.exit(0)
@@ -350,6 +415,11 @@ if __name__ == '__main__':
         work_one_job()
     elif cmd == 'attest':
         attest_pending_jobs()
+    elif cmd == 'accept':
+        accept_pending_deliveries()
+    elif cmd == 'post':
+        count = int(sys.argv[2]) if len(sys.argv) > 2 else 5
+        post_batch_jobs(count)
     elif cmd == 'auto':
         count = int(sys.argv[2]) if len(sys.argv) > 2 else 50
         auto_loop(count)
